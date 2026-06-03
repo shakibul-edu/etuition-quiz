@@ -1,0 +1,6 @@
+{
+  "name": "etuition-quize",
+  "description": "A quiz app for SSC students across all subjects in Bangla medium.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,47 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A student using the quiz app",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "className": { "type": "string" },
+        "school": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["uid", "email", "name", "className", "school"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "A quiz question",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "options": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "correctAnswerIndex": { "type": "number" },
+        "explanation": { "type": "string" },
+        "subject": { "type": "string" },
+        "class": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["text", "options", "correctAnswerIndex", "explanation", "subject", "class"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Student profiles"
+    },
+    "questions/{questionId}": {
+      "schema": { "$ref": "#/entities/Question" },
+      "description": "Generated quiz questions pool"
+    }
+  }
+}

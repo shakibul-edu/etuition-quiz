@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function existing() {
+      return resource.data;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Validation for User
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'name', 'className', 'school', 'createdAt', 'updatedAt']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && data.email.size() <= 254 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.className is string && data.className.size() <= 50 &&
+             data.school is string && data.school.size() <= 200 &&
+             data.createdAt is number &&
+             data.updatedAt is number;
+    }
+
+    // users collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // questions collection
+    match /questions/{questionId} {
+      allow read, write: if true;
+    }
+
+    match /subjects/{document=**} {
+      allow read, write: if true;
+    }
+
+    match /classes/{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
