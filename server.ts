@@ -40,7 +40,7 @@ Provide the response as a JSON array where each object has the following structu
 Only output the JSON array, no other text. IMPORTANT: Ensure these are unique and different from typical common questions.`;
 
       const aiResponse = await ai.models.generateContent({
-        model: "gemini-2.5-pro",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
             responseMimeType: "application/json",
@@ -53,7 +53,25 @@ Only output the JSON array, no other text. IMPORTANT: Ensure these are unique an
           throw new Error("No response from AI");
       }
       
-      const newQuestions = JSON.parse(textOutput);
+      let cleanText = textOutput.trim();
+      if (cleanText.startsWith('```json')) {
+        cleanText = cleanText.substring(7);
+      } else if (cleanText.startsWith('```')) {
+        cleanText = cleanText.substring(3);
+      }
+      if (cleanText.endsWith('```')) {
+        cleanText = cleanText.substring(0, cleanText.length - 3);
+      }
+      cleanText = cleanText.trim();
+
+      let newQuestions;
+      try {
+        newQuestions = JSON.parse(cleanText);
+      } catch (e: any) {
+        console.error("JSON Parse Error. The AI Output was:", textOutput);
+        throw new Error("AI response was not valid JSON: " + e.message);
+      }
+
       
       // Save directly to firestore
       try {

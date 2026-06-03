@@ -51,11 +51,11 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
     setQuestions([]);
   }, [selectedLevel]);
 
-  const fetchQuestions = async (currentOffset: number = offsetCount) => {
+  const fetchQuestions = async (currentOffset: number = offsetCount): Promise<boolean> => {
     if (currentOffset >= 500) {
         alert('আপনি এই বিষয়ের সর্বোচ্চ ৫০০টি প্রশ্ন সম্পন্ন করেছেন! অভিনন্দন!');
         onBack();
-        return;
+        return false;
     }
 
     setIsLoading(true);
@@ -77,10 +77,11 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
 
       if (targetQuestions.length === 20 || (allDocs.length > 0 && currentOffset + targetQuestions.length >= 500)) {
         setQuestions(targetQuestions);
+        return true;
       } else {
         // Need to generate missing questions
         setIsGenerating(true);
-        const amountToGenerate = Math.min(20, 500 - currentOffset);
+        const amountToGenerate = Math.min(20 - targetQuestions.length, 500 - currentOffset); // Generate remaining for full level
         
         const response = await fetch('/api/questions/generate', {
           method: 'POST',
@@ -92,21 +93,28 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
           }),
         });
         
-        const data = await response.json();
+        let data;
+        try {
+          data = await response.json();
+        } catch (e) {
+          throw new Error("Server error (timeout or invalid response). Please try again.");
+        }
         
         if (!response.ok) {
            if (response.status === 429) {
              throw new Error("AI কোটা সাময়িকভাবে শেষ হয়ে গেছে, অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।");
            }
-           throw new Error(data.error || "Failed to generate questions");
+           throw new Error(data?.error || "Failed to generate questions");
         }
         
         // The server already saved to firestore and gave us full objects
-        setQuestions(data.questions);
+        setQuestions([...targetQuestions, ...data.questions]);
+        return true;
       }
     } catch (error: any) {
       console.error(error);
       alert(error.message || "দুঃখিত, প্রশ্ন লোড করতে সমস্যা হচ্ছে।");
+      return false;
     } finally {
       setIsLoading(false);
       setIsGenerating(false);
@@ -114,10 +122,13 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
   };
 
   const startQuiz = async () => {
-    if (questions.length === 0) {
-      await fetchQuestions();
+    let hasQuestions = questions.length > 0;
+    if (!hasQuestions) {
+      hasQuestions = await fetchQuestions();
     }
-    setGameState('playing');
+    if (hasQuestions) {
+      setGameState('playing');
+    }
   };
 
   useEffect(() => {
@@ -215,8 +226,10 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
     setIsAnswerSubmitted(false);
     setScore(0); 
     setHistory([]);
-    await fetchQuestions(newOffset);
-    setGameState('playing');
+    const success = await fetchQuestions(newOffset);
+    if (success) {
+      setGameState('playing');
+    }
   }
 
   if (gameState === 'start') {
