@@ -4,6 +4,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { UserProfile } from '../types';
 import { BookOpen } from 'lucide-react';
+import ETuitionPromo from './ETuitionPromo';
 
 interface AuthWrapperProps {
   children: (user: UserProfile) => React.ReactNode;
@@ -101,12 +102,27 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
         <p className="text-slate-500 mb-8">ই-টিউশন কুইজে অংশগ্রহণ করতে লগইন করুন</p>
         
         <button
-          onClick={() => signInWithGoogle()}
-          className="w-full flex items-center justify-center gap-3 bg-white border border-slate-300 text-slate-700 font-bold py-3 px-4 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
+          onClick={async () => {
+            try {
+              await signInWithGoogle();
+            } catch (err: any) {
+              console.error(err);
+              if (err.code === 'auth/unauthorized-domain') {
+                alert('লগইন ব্যর্থ হয়েছে। ফায়ারবেস কনসোলে এই ডোমেইনটি Authorized Domains-এ যুক্ত নেই। Firebase Console > Authentication > Settings > Authorized domains -এ গিয়ে আপনার ডোমেইনটি যুক্ত করুন।');
+              } else if (err.code === 'auth/popup-closed-by-user') {
+                // Ignore popup closed
+              } else {
+                alert('লগইন করতে সমস্যা হয়েছে: ' + err.message);
+              }
+            }
+          }}
+          className="w-full flex items-center justify-center gap-3 bg-white border border-slate-300 text-slate-700 font-bold py-3 px-4 rounded-lg hover:bg-slate-50 transition-colors shadow-sm mb-8"
         >
           <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5" />
           Google দিয়ে লগইন করুন
         </button>
+
+        <ETuitionPromo />
       </div>
     );
   }

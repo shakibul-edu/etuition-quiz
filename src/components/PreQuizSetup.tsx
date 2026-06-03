@@ -3,6 +3,7 @@ import { UserProfile } from '../types';
 import QuizApp from './QuizApp';
 import Leaderboard from './Leaderboard';
 import AdminUpload from './AdminUpload';
+import ETuitionPromo from './ETuitionPromo';
 import * as Icons from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -84,6 +85,10 @@ export default function PreQuizSetup({ user }: PreQuizSetupProps) {
         )}
       </div>
       
+      <div className="w-full mb-8">
+        <ETuitionPromo />
+      </div>
+
       <Leaderboard />
     </div>
   );

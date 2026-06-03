@@ -4,6 +4,7 @@ import { BookOpen, CheckCircle2, ChevronRight, XCircle, RefreshCcw, Award, Arrow
 import { collection, query, where, getDocs, doc, writeBatch, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getWeekId } from '../utils/dateUtils';
+import ETuitionPromo from './ETuitionPromo';
 
 interface QuizAppProps {
   user: UserProfile;
@@ -320,6 +321,10 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
             <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-2">সঠিকতার হার</p>
             <p className="text-5xl font-bold text-emerald-500">{percentage}%</p>
           </div>
+        </div>
+
+        <div className="w-full mb-8">
+          <ETuitionPromo />
         </div>
 
         <div className="flex gap-4 mb-12">
