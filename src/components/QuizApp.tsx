@@ -76,13 +76,17 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
       
       const targetQuestions = allDocs.slice(currentOffset, currentOffset + 20);
 
-      if (targetQuestions.length === 20 || (allDocs.length > 0 && currentOffset + targetQuestions.length >= 500)) {
+      if (targetQuestions.length >= 5 || (allDocs.length > 0 && currentOffset + targetQuestions.length >= 500)) {
         setQuestions(targetQuestions);
+        // Start background pregeneration if we have less than 20
+        if (targetQuestions.length < 20 && currentOffset + targetQuestions.length < 500) {
+            pregenerateNextQuestions();
+        }
         return true;
       } else {
-        // Need to generate missing questions
+        // Need to generate initial questions
         setIsGenerating(true);
-        const amountToGenerate = Math.min(20 - targetQuestions.length, 500 - currentOffset); // Generate remaining for full level
+        const amountToGenerate = Math.min(5 - targetQuestions.length, 500 - currentOffset); 
         
         const response = await fetch('/api/questions/generate', {
           method: 'POST',
@@ -95,9 +99,11 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
         });
         
         let data;
+        let responseText = await response.text();
         try {
-          data = await response.json();
+          data = JSON.parse(responseText);
         } catch (e) {
+          console.error("Non-JSON response from server:", responseText);
           throw new Error("Server error (timeout or invalid response). Please try again.");
         }
         
@@ -108,8 +114,14 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
            throw new Error(data?.error || "Failed to generate questions");
         }
         
-        // The server already saved to firestore and gave us full objects
-        setQuestions([...targetQuestions, ...data.questions]);
+        const mergedQuestions = [...targetQuestions, ...data.questions];
+        setQuestions(mergedQuestions);
+        
+        // After getting the first 5, trigger generation for the rest of the 20
+        if (mergedQuestions.length < 20) {
+           pregenerateNextQuestions();
+        }
+        
         return true;
       }
     } catch (error: any) {
@@ -208,9 +220,6 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
     if (isPregeneratingRef.current) return;
     
     try {
-      const nextOffset = offsetCount + 20;
-      if (nextOffset >= 500) return; // Reached max questions
-
       const qRef = collection(db, 'questions');
       const q = query(
         qRef,
@@ -219,13 +228,54 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
       );
       
       const querySnapshot = await getDocs(q);
-      const allDocs = querySnapshot.docs;
+      const allDocs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
+      allDocs.sort((a, b) => a.createdAt - b.createdAt);
       
-      const targetQuestions = allDocs.slice(nextOffset, nextOffset + 20);
+      const currentLevelQuestions = allDocs.slice(offsetCount, offsetCount + 20);
       
-      if (targetQuestions.length < 20 && (nextOffset + targetQuestions.length < 500)) {
+      // Fill current level first
+      if (currentLevelQuestions.length < 20 && offsetCount + currentLevelQuestions.length < 500) {
         isPregeneratingRef.current = true;
-        const amountToGenerate = Math.min(20 - targetQuestions.length, 500 - nextOffset);
+        const amountToGenerate = Math.min(5, 20 - currentLevelQuestions.length); // batch 5 at a time
+        
+        const response = await fetch('/api/questions/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            className: user.className, 
+            subject: subjectId,
+            limit: amountToGenerate
+          }),
+        });
+        
+        if (response.ok) {
+           const data = await response.json();
+           setQuestions(prev => {
+             const merged = [...prev];
+             data.questions.forEach((q: Question) => {
+               if (!merged.find(x => x.id === q.id)) merged.push(q);
+             });
+             return merged;
+           });
+        }
+        isPregeneratingRef.current = false;
+        
+        // Loop recursively to finish 20
+        if (currentLevelQuestions.length + amountToGenerate < 20) {
+           pregenerateNextQuestions();
+        }
+        return;
+      }
+      
+      // If current level is full, pregenerate next level
+      const nextOffset = offsetCount + 20;
+      if (nextOffset >= 500) return; // Reached max questions
+
+      const nextQuestions = allDocs.slice(nextOffset, nextOffset + 20);
+      
+      if (nextQuestions.length < 20 && (nextOffset + nextQuestions.length < 500)) {
+        isPregeneratingRef.current = true;
+        const amountToGenerate = Math.min(5, 20 - nextQuestions.length);
         
         await fetch('/api/questions/generate', {
           method: 'POST',
@@ -236,16 +286,20 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
             limit: amountToGenerate
           }),
         });
+        isPregeneratingRef.current = false;
+        
+        if (nextQuestions.length + amountToGenerate < 20) {
+           pregenerateNextQuestions();
+        }
       }
     } catch (error) {
       console.error("Background pre-generation failed:", error);
-    } finally {
       isPregeneratingRef.current = false;
     }
   };
 
   const handleNextQuestion = async () => {
-    if (currentQuestionIndex === Math.max(0, questions.length - 10)) {
+    if (currentQuestionIndex === Math.max(0, questions.length - 10) || questions.length < 20) {
       pregenerateNextQuestions();
     }
 
@@ -254,6 +308,11 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
       setSelectedOption(null);
       setIsAnswerSubmitted(false);
     } else {
+      if (questions.length < 20 && (offsetCount + questions.length < 500)) {
+         alert("পরবর্তী প্রশ্ন তৈরি হচ্ছে, দয়া করে একটু অপেক্ষা করুন...");
+         return;
+      }
+      
       await saveProgress();
       setGameState('result');
     }
