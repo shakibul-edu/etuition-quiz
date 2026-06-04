@@ -29,7 +29,7 @@ async function startServer() {
       }
 
       // We need to generate questions
-      const prompt = `Generate ${limit} multiple choice questions for class ${className} (Bangladesh standard SSC 2026 syllabus) on the subject of ${subject}. Incorporate previous year board questions patterns. The medium of instruction is Bengali.
+      const prompt = `Generate ${limit} multiple choice questions for class ${className} on the subject of ${subject}. Incorporate suitable standard educational patterns for this class level in Bangladesh. The medium of instruction is Bengali.
 Provide the response as a JSON array where each object has the following structure:
 {
   "text": "The question text in Bengali",

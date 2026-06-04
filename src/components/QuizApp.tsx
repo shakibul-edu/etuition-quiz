@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Question, QuizState, UserProfile } from '../types';
 import { BookOpen, CheckCircle2, ChevronRight, XCircle, RefreshCcw, Award, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
 import { collection, query, where, getDocs, doc, writeBatch, getDoc, updateDoc } from 'firebase/firestore';
@@ -18,6 +18,7 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const isPregeneratingRef = useRef(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(false);
@@ -203,7 +204,51 @@ export default function QuizApp({ user, subjectId, subjectName, onBack }: QuizAp
     setIsAnswerSubmitted(true);
   };
 
+  const pregenerateNextQuestions = async () => {
+    if (isPregeneratingRef.current) return;
+    
+    try {
+      const nextOffset = offsetCount + 20;
+      if (nextOffset >= 500) return; // Reached max questions
+
+      const qRef = collection(db, 'questions');
+      const q = query(
+        qRef,
+        where("class", "==", user.className),
+        where("subject", "==", subjectId)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const allDocs = querySnapshot.docs;
+      
+      const targetQuestions = allDocs.slice(nextOffset, nextOffset + 20);
+      
+      if (targetQuestions.length < 20 && (nextOffset + targetQuestions.length < 500)) {
+        isPregeneratingRef.current = true;
+        const amountToGenerate = Math.min(20 - targetQuestions.length, 500 - nextOffset);
+        
+        await fetch('/api/questions/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            className: user.className, 
+            subject: subjectId,
+            limit: amountToGenerate
+          }),
+        });
+      }
+    } catch (error) {
+      console.error("Background pre-generation failed:", error);
+    } finally {
+      isPregeneratingRef.current = false;
+    }
+  };
+
   const handleNextQuestion = async () => {
+    if (currentQuestionIndex === Math.max(0, questions.length - 10)) {
+      pregenerateNextQuestions();
+    }
+
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
       setSelectedOption(null);

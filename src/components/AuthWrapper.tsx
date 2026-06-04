@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { auth, db, signInWithGoogle } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, onSnapshot } from 'firebase/firestore';
 import { UserProfile } from '../types';
 import { BookOpen } from 'lucide-react';
 import ETuitionPromo from './ETuitionPromo';
@@ -33,29 +33,40 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let unsubscribeSnapshot: (() => void) | undefined;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       if (user) {
         // Fetch user profile from firestore
         try {
           const docRef = doc(db, 'users', user.uid);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setUserProfile(docSnap.data() as UserProfile);
-          } else {
-            // Profile doesn't exist yet, populate default values from google
-            setName(user.displayName || '');
-          }
+          unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists()) {
+              setUserProfile(docSnap.data() as UserProfile);
+            } else {
+              // Profile doesn't exist yet, populate default values from google
+              setName(user.displayName || '');
+              setUserProfile(null);
+            }
+          });
         } catch (error) {
           console.error("Error fetching user profile:", error);
         }
       } else {
         setUserProfile(null);
+        if (unsubscribeSnapshot) {
+          unsubscribeSnapshot();
+          unsubscribeSnapshot = undefined;
+        }
       }
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeSnapshot) unsubscribeSnapshot();
+    };
   }, []);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
